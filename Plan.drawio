@@ -1,0 +1,43 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Seite-1" id="hUPJOSv4bbrJUUvKn9zp">
+    <mxGraphModel dx="1203" dy="669" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="50" width="200" x="-670" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="50" width="200" x="-670" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="50" width="200" x="-670" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;" value="" vertex="1">
+          <mxGeometry height="50" width="200" x="-670" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-8" edge="1" parent="1" source="ZTJ1guppaTcwNKQXC5kA-3" style="edgeStyle=none;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="ZTJ1guppaTcwNKQXC5kA-1" value="">
+          <mxGeometry relative="1" width="140" as="geometry">
+            <Array as="points" />
+            <mxPoint x="-580" y="280" as="sourcePoint" />
+            <mxPoint x="-560" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-9" edge="1" parent="1" style="edgeStyle=none;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ZTJ1guppaTcwNKQXC5kA-2" value="">
+          <mxGeometry relative="1" width="140" as="geometry">
+            <Array as="points" />
+            <mxPoint x="-570" y="300" as="sourcePoint" />
+            <mxPoint x="-440" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ZTJ1guppaTcwNKQXC5kA-10" edge="1" parent="1" source="ZTJ1guppaTcwNKQXC5kA-2" style="edgeStyle=none;orthogonalLoop=1;jettySize=auto;html=1;rounded=0;fontSize=12;startSize=8;endSize=8;curved=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ZTJ1guppaTcwNKQXC5kA-4" value="">
+          <mxGeometry relative="1" width="140" as="geometry">
+            <Array as="points" />
+            <mxPoint x="-580" y="280" as="sourcePoint" />
+            <mxPoint x="-440" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
