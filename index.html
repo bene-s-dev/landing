@@ -51,6 +51,14 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>
+        Babel.registerPreset('custom-react', {
+            presets: [
+                Babel.availablePresets['env'],
+                [Babel.availablePresets['react'], { runtime: 'classic' }]
+            ]
+        });
+    </script>
 
     <style>
         @keyframes ring-pulse {
@@ -99,7 +107,7 @@
 
     <div id="root" class="min-h-screen w-full flex flex-col"></div>
 
-    <script type="text/babel">
+    <script type="text/babel" data-presets="custom-react">
         const { useState, useEffect, useRef } = React;
 
         const generatePlaceholderBars = (count) => {
@@ -295,8 +303,8 @@
                     name: 'Bisou-App',
                     subtitle: 'Verbindungsplattform',
                     url: 'https://bisou.benelabs.de',
-                    desc: 'Moderne Kommunikations- und API-Schnittstelle zur Datenaggregation und Echtzeitkommunikation.',
-                    tag: 'Core API',
+                    desc: 'Realtime Couple-App',
+                    tag: '',
                     color: 'from-violet-500/10 to-indigo-500/5',
                     textColor: 'text-brand-violet',
                     borderColor: 'border-brand-violet/30 hover:border-brand-violet/70',
@@ -419,7 +427,6 @@
                                 {/* Welcome / Summary Info */}
                                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-850 pb-5">
                                     <div>
-                                        <h1 className="text-2xl font-bold tracking-tight text-white">Infrastruktur & Dienste</h1>
                                         <p className="text-xs sm:text-sm text-zinc-400">Statusüberwachung der primären Rechenknoten und deployed Service-Instanzen.</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-zinc-400">
@@ -551,9 +558,11 @@
                                                                         {svc.subtitle}
                                                                     </span>
                                                                 </div>
-                                                                <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${svcStatus.status === 'no-data' ? 'bg-zinc-900/60 text-zinc-500 border-zinc-800' : svc.badgeColor}`}>
-                                                                    {svc.tag}
-                                                                </span>
+                                                                {svc.tag && (
+                                                                    <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${svcStatus.status === 'no-data' ? 'bg-zinc-900/60 text-zinc-500 border-zinc-800' : svc.badgeColor}`}>
+                                                                        {svc.tag}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                             <p className="text-[11px] text-zinc-400 leading-relaxed font-sans line-clamp-3">
                                                                 {svc.desc}
