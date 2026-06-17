@@ -1,50 +1,106 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>benelabs</title>
+    <title>benelabs console</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        zinc: {
+                            950: '#09090b',
+                            900: '#121214',
+                            800: '#1a1a1e',
+                            700: '#27272a',
+                        },
+                        brand: {
+                            violet: '#A199FE',
+                            sky: '#0ea5e9',
+                            emerald: '#10b981',
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(4px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Symmetrisches, flüssiges Pulsieren der Vektor-Ringe */
-        @keyframes svg-pulse {
+        @keyframes ring-pulse {
             0% { 
                 transform: scale(1); 
-                opacity: 0.8; 
+                opacity: 0.6; 
             }
             80% {
-                opacity: 0.15;
+                opacity: 0.1;
             }
             100% { 
-                transform: scale(2.6); 
+                transform: scale(2.8); 
                 opacity: 0; 
             }
         }
         
         .pulse-ring-1 {
-            animation: svg-pulse 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+            animation: ring-pulse 2.4s cubic-bezier(0.215, 0.610, 0.355, 1) infinite;
             transform-origin: center;
         }
         
         .pulse-ring-2 {
-            animation: svg-pulse 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
-            animation-delay: 0.7s;
+            animation: ring-pulse 2.4s cubic-bezier(0.215, 0.610, 0.355, 1) infinite;
+            animation-delay: 0.8s;
             transform-origin: center;
+        }
+
+        /* Custom scrollbar for terminal/content */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
-<body class="bg-[#f2f2f7] text-zinc-950 m-0 p-0 font-sans antialiased overflow-hidden h-[100dvh] w-full selection:bg-blue-100">
+<body class="bg-zinc-950 text-zinc-100 m-0 p-0 font-sans antialiased min-h-screen selection:bg-brand-violet/30 selection:text-white">
 
-    <div id="root" class="h-full w-full"></div>
+    <div id="root" class="min-h-screen w-full flex flex-col"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         const generatePlaceholderBars = (count) => {
             return Array.from({ length: count }, (_, i) => ({ id: i }));
@@ -52,11 +108,30 @@
 
         function App() {
             const [screen, setScreen] = useState('status'); // 'status' | 'login'
-            const [bisou, setBisou] = useState({ status: 'loading', uptime: null });
-            const [wetter, setWetter] = useState({ status: 'loading', uptime: null });
+            const [monitors, setMonitors] = useState([]);
+            const [loading, setLoading] = useState(true);
+            
+            // Real system metrics from endpoint (initially null)
+            const [metrics, setMetrics] = useState(null);
+
+            // Console/Terminal logs state
+            const [terminalInput, setTerminalInput] = useState('');
+            const [terminalLogs, setTerminalLogs] = useState([
+                { text: 'benelabs Console v2.8.5 - Initialisiere...', type: 'system' },
+                { text: 'Schnittstellen geladen. Tippe "help" für Befehle.', type: 'system' }
+            ]);
+            const terminalEndRef = useRef(null);
 
             useEffect(() => {
+                if (terminalEndRef.current) {
+                    terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, [terminalLogs]);
+
+            // Fetch actual UptimeRobot monitors
+            useEffect(() => {
                 const fetchStatus = () => {
+                    setLoading(true);
                     fetch('https://api.uptimerobot.com/v2/getMonitors', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -68,42 +143,16 @@
                     })
                     .then(res => res.json())
                     .then(data => {
-                        if (data && data.monitors && data.monitors.length > 0) {
-                            const bisouMonitor = data.monitors.find(m => 
-                                m.friendly_name.toLowerCase().includes('bisou') || 
-                                m.url.toLowerCase().includes('bisou')
-                            );
-
-                            const wetterMonitor = data.monitors.find(m => 
-                                m.friendly_name.toLowerCase().includes('wetter') || 
-                                m.friendly_name.toLowerCase().includes('bene') ||
-                                m.url.toLowerCase().includes('wetter')
-                            );
-
-                            const finalBisou = bisouMonitor || data.monitors[0];
-                            const finalWetter = wetterMonitor || (data.monitors.length > 1 ? data.monitors[1] : null);
-
-                            setBisou({
-                                status: 'online',
-                                uptime: finalBisou.custom_uptime_ratio || null
-                            });
-
-                            if (finalWetter) {
-                                setWetter({
-                                    status: 'online',
-                                    uptime: finalWetter.custom_uptime_ratio || null
-                                });
-                            } else {
-                                setWetter({ status: 'online', uptime: null });
-                            }
+                        if (data && data.monitors) {
+                            setMonitors(data.monitors);
                         } else {
-                            setBisou({ status: 'online', uptime: null });
-                            setWetter({ status: 'online', uptime: null });
+                            setMonitors([]);
                         }
+                        setLoading(false);
                     })
                     .catch(() => {
-                        setBisou({ status: 'online', uptime: null });
-                        setWetter({ status: 'online', uptime: null });
+                        setMonitors([]);
+                        setLoading(false);
                     });
                 };
 
@@ -112,203 +161,631 @@
                 return () => clearInterval(interval);
             }, []);
 
+            // Fetch actual system metrics (no simulation!)
+            useEffect(() => {
+                const fetchMetrics = () => {
+                    fetch('/api/stats')
+                    .then(res => {
+                        if (!res.ok) throw new Error('API offline');
+                        return res.json();
+                    })
+                    .then(data => {
+                        setMetrics({
+                            cpu: data.cpu !== undefined ? data.cpu : null,
+                            ram: data.ram !== undefined ? data.ram : null,
+                            storage: data.storage !== undefined ? data.storage : null,
+                            bandwidthUp: data.bandwidthUp !== undefined ? data.bandwidthUp : null,
+                            bandwidthDown: data.bandwidthDown !== undefined ? data.bandwidthDown : null
+                        });
+                    })
+                    .catch(() => {
+                        // Fallback to static JSON file if present
+                        fetch('/stats.json')
+                        .then(res => {
+                            if (!res.ok) throw new Error('JSON offline');
+                            return res.json();
+                        })
+                        .then(data => {
+                            setMetrics({
+                                cpu: data.cpu !== undefined ? data.cpu : null,
+                                ram: data.ram !== undefined ? data.ram : null,
+                                storage: data.storage !== undefined ? data.storage : null,
+                                bandwidthUp: data.bandwidthUp !== undefined ? data.bandwidthUp : null,
+                                bandwidthDown: data.bandwidthDown !== undefined ? data.bandwidthDown : null
+                            });
+                        })
+                        .catch(() => {
+                            // Real data not available, set metrics to null (renders as grey/no-data)
+                            setMetrics(null);
+                        });
+                    });
+                };
+
+                fetchMetrics();
+                const interval = setInterval(fetchMetrics, 15000);
+                return () => clearInterval(interval);
+            }, []);
+
+            // Dynamic status checker for services
+            const getServiceStatus = (svc) => {
+                if (loading) return { status: 'loading', uptime: null };
+                
+                // Try to find a matching monitor by URL or name
+                const monitor = monitors.find(m => {
+                    const matchUrl = svc.url !== '#' && m.url && m.url.toLowerCase().includes(svc.url.replace('https://', '').replace('/', '').toLowerCase());
+                    const matchName = m.friendly_name && m.friendly_name.toLowerCase().includes(svc.name.toLowerCase());
+                    return matchUrl || matchName;
+                });
+
+                if (monitor) {
+                    return {
+                        status: monitor.status === 2 ? 'online' : (monitor.status === 9 || monitor.status === 8 ? 'offline' : 'paused'),
+                        uptime: monitor.custom_uptime_ratio || '100.0'
+                    };
+                }
+
+                return { status: 'no-data', uptime: null };
+            };
+
+            // Terminal input handler
+            const handleTerminalSubmit = (e) => {
+                e.preventDefault();
+                const cmd = terminalInput.trim().toLowerCase();
+                if (!cmd) return;
+
+                const newLogs = [...terminalLogs, { text: `user@benelabs:~$ ${terminalInput}`, type: 'input' }];
+
+                switch (cmd) {
+                    case 'help':
+                        newLogs.push(
+                            { text: 'Verfügbare Befehle:', type: 'output' },
+                            { text: '  status    - Zeigt den System- und Gateway-Zustand', type: 'output' },
+                            { text: '  neofetch  - Systemübersicht im ASCII-Stil ausgeben', type: 'output' },
+                            { text: '  nodes     - Zeigt Details der physischen Rechen-Nodes', type: 'output' },
+                            { text: '  logs      - Letzte Sicherheits- und System-Events abrufen', type: 'output' },
+                            { text: '  clear     - Terminal-Ausgabe leeren', type: 'output' }
+                        );
+                        break;
+                    case 'clear':
+                        setTerminalLogs([]);
+                        setTerminalInput('');
+                        return;
+                    case 'status':
+                        const metricsLoaded = metrics !== null;
+                        const activeMonitors = monitors.length;
+                        newLogs.push(
+                            { text: '--- INFRASTRUKTUR ZUSTAND ---', type: 'output' },
+                            { text: `System-Metriken: ${metricsLoaded ? 'Online' : 'KEINE DATEN (/api/stats nicht erreichbar)'}`, type: 'output' },
+                            { text: `Uptime-Uplinks  : ${activeMonitors > 0 ? `${activeMonitors} Aktiv` : 'KEINE DATEN (Uptime-API offline)'}`, type: 'output' },
+                            { text: 'DNS-Auflösung  : Aktiv (Zustand: Echtzeit-Schutz)', type: 'output' }
+                        );
+                        break;
+                    case 'neofetch':
+                        newLogs.push(
+                            { text: '   /\\_/\\      benelabs-core@node-prime', type: 'output' },
+                            { text: '  ( o.o )     OS: benelabs Enterprise OS v4.2', type: 'output' },
+                            { text: '   > ^ <      Kernel: 6.8.0-4-amd64-pve', type: 'output' },
+                            { text: `              CPU: ${metrics && metrics.cpu !== null ? `${metrics.cpu}%` : 'KEINE DATEN'}`, type: 'output' },
+                            { text: `              RAM: ${metrics && metrics.ram !== null ? `${metrics.ram}%` : 'KEINE DATEN'}`, type: 'output' },
+                            { text: `              Datenquelle: ${metrics ? 'Lokaler Stats-Daemon (/api/stats)' : 'Keine Verbindung (N/A)'}`, type: 'output' }
+                        );
+                        break;
+                    case 'nodes':
+                        newLogs.push(
+                            { text: '--- CLUSTER-KNOTEN ---', type: 'output' },
+                            { text: 'Fehler: Lokaler Node-Daemon offline. Keine Knotendaten verfügbar.', type: 'error' }
+                        );
+                        break;
+                    case 'logs':
+                        newLogs.push(
+                            { text: '--- PROTOKOLL SYSTEM-LOGS ---', type: 'output' },
+                            { text: 'Fehler: /api/logs nicht erreichbar. Keine Ereignis-Logs vorhanden.', type: 'error' }
+                        );
+                        break;
+                    default:
+                        newLogs.push({ text: `Befehl nicht gefunden: "${cmd}". Tippe "help" für eine Übersicht.`, type: 'error' });
+                }
+
+                setTerminalLogs(newLogs);
+                setTerminalInput('');
+            };
+
+            const services = [
+                {
+                    name: 'Bisou-App',
+                    subtitle: 'Verbindungsplattform',
+                    url: 'https://bisou.benelabs.de',
+                    desc: 'Moderne Kommunikations- und API-Schnittstelle zur Datenaggregation und Echtzeitkommunikation.',
+                    tag: 'Core API',
+                    color: 'from-violet-500/10 to-indigo-500/5',
+                    textColor: 'text-brand-violet',
+                    borderColor: 'border-brand-violet/30 hover:border-brand-violet/70',
+                    badgeColor: 'bg-brand-violet/10 text-brand-violet border-brand-violet/20'
+                },
+                {
+                    name: 'BeneWetter',
+                    subtitle: 'Metrische Analytik',
+                    url: 'https://wetter.benelabs.de',
+                    desc: 'Visualisiertes Klimadaten-Dashboard zur Auswertung lokaler Sensordaten und Wetterprognosen.',
+                    tag: 'Climate Tracker',
+                    color: 'from-sky-500/10 to-blue-500/5',
+                    textColor: 'text-brand-sky',
+                    borderColor: 'border-brand-sky/30 hover:border-brand-sky/70',
+                    badgeColor: 'bg-brand-sky/10 text-brand-sky border-brand-sky/20'
+                },
+                {
+                    name: 'Einkaufs-Checker',
+                    subtitle: 'Bedarfs- und Versorgungslogistik',
+                    url: 'https://einkaufschecker.vercel.app/',
+                    desc: 'Dezentrales Ressourcen- und Bestandsmanagement-Tool zur effizienten Versorgungsplanung und Echtzeit-Synchronisation.',
+                    tag: 'Logistics',
+                    color: 'from-orange-500/10 to-amber-500/5',
+                    textColor: 'text-orange-400',
+                    borderColor: 'border-orange-500/20 hover:border-orange-500/50',
+                    badgeColor: 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+                },
+                {
+                    name: 'Code-Vault',
+                    subtitle: 'Sicherheits-Repository',
+                    url: '#',
+                    desc: 'Eigenständige Versionierungsplattform für private Repositories und automatisierte CI/CD-Pipelines.',
+                    tag: 'DevOps',
+                    color: 'from-amber-500/10 to-orange-500/5',
+                    textColor: 'text-amber-400',
+                    borderColor: 'border-amber-500/20 hover:border-amber-500/50',
+                    badgeColor: 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                },
+                {
+                    name: 'DNS-Shield',
+                    subtitle: 'Sicherheits-DNS',
+                    url: '#',
+                    desc: 'Netzwerkweiter Filter für Telemetriedaten, Trackerschutz und intelligente DNS-Auflösung.',
+                    tag: 'Security & DNS',
+                    color: 'from-emerald-500/10 to-teal-500/5',
+                    textColor: 'text-emerald-400',
+                    borderColor: 'border-emerald-500/20 hover:border-emerald-500/50',
+                    badgeColor: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                },
+                {
+                    name: 'Data-Lake',
+                    subtitle: 'Redundanter Storage',
+                    url: '#',
+                    desc: 'Private Storage-Cloud mit automatisierter Datenspiegelung und verschlüsselten Offsite-Backups.',
+                    tag: 'Cloud Storage',
+                    color: 'from-rose-500/10 to-pink-500/5',
+                    textColor: 'text-rose-400',
+                    borderColor: 'border-rose-500/20 hover:border-rose-500/50',
+                    badgeColor: 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                },
+                {
+                    name: 'Environment Hub',
+                    subtitle: 'Umgebungskontrolle',
+                    url: '#',
+                    desc: 'Zentrale Steuerungsinstanz zur Aggregation, Vernetzung und Steuerung von Sensorik-Hardware.',
+                    tag: 'IoT System',
+                    color: 'from-purple-500/10 to-fuchsia-500/5',
+                    textColor: 'text-purple-400',
+                    borderColor: 'border-purple-500/20 hover:border-purple-500/50',
+                    badgeColor: 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                }
+            ];
+
             return (
-                <div className="h-[100dvh] flex flex-col justify-between p-6 sm:p-10 max-w-2xl mx-auto w-full box-border">
-                    
-                    <header className="flex justify-between items-center border-b border-zinc-200/80 pb-4 w-full h-12 shrink-0">
-                        <div className="flex items-center gap-2.5">
-                            <span className="text-xl font-extrabold tracking-tight text-zinc-900 font-sans">
-                                benelabs
-                            </span>
+                <div className="flex-1 flex flex-col min-h-screen">
+                    {/* Header */}
+                    <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/60 px-6 py-4">
+                        <div className="max-w-6xl mx-auto flex justify-between items-center w-full">
+                            <div className="flex items-center gap-3">
+                                <svg className="w-5 h-5 text-brand-violet" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect width="20" height="8" x="2" y="3" rx="2" />
+                                    <rect width="20" height="8" x="2" y="13" rx="2" />
+                                    <line x1="6" x2="6.01" y1="7" y2="7" />
+                                    <line x1="6" x2="6.01" y1="17" y2="17" />
+                                    <line x1="10" x2="14" y1="7" y2="7" />
+                                    <line x1="10" x2="14" y1="17" y2="17" />
+                                </svg>
+                                <span className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                                    benelabs <span className="text-zinc-500 font-normal text-sm font-mono tracking-widest hidden sm:inline">CONSOLE</span>
+                                </span>
+                                <div className={`hidden md:flex items-center gap-2 px-2.5 py-0.5 rounded-full border text-xs font-medium ${loading ? 'border-zinc-800 bg-zinc-900 text-zinc-500' : (monitors.length > 0 ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400' : 'border-zinc-800 bg-zinc-900 text-zinc-500')}`}>
+                                    {loading ? (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-650 animate-pulse"></span>
+                                    ) : (
+                                        <span className={`w-1.5 h-1.5 rounded-full ${monitors.length > 0 ? 'bg-emerald-400' : 'bg-zinc-650'}`}></span>
+                                    )}
+                                    {loading ? 'Prüfe System...' : (monitors.length > 0 ? 'Infrastruktur Online' : 'Keine Live-Daten')}
+                                </div>
+                            </div>
+                            
+                            <button 
+                                onClick={() => setScreen(screen === 'status' ? 'login' : 'status')}
+                                className={`text-xs font-semibold px-4 py-2 rounded-lg border font-mono transition-all duration-200 ${
+                                    screen === 'status' 
+                                    ? 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white hover:bg-zinc-850 shadow-sm' 
+                                    : 'bg-zinc-100 text-zinc-900 border-zinc-100 hover:bg-white hover:text-black font-bold'
+                                }`}
+                            >
+                                {screen === 'status' ? 'Anmelden' : 'Schließen'}
+                            </button>
                         </div>
-                        
-                        <button 
-                            onClick={() => setScreen(screen === 'status' ? 'login' : 'status')}
-                            className={`text-xs font-semibold px-4 py-1.5 rounded-lg border transition-all ${
-                                screen === 'status' 
-                                ? 'bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400 hover:text-zinc-900 shadow-sm' 
-                                : 'bg-zinc-950 text-white border-zinc-950 hover:bg-zinc-800'
-                            }`}
-                        >
-                            {screen === 'status' ? 'Anmelden' : 'Schließen'}
-                        </button>
                     </header>
 
-                    <main className="flex-1 flex flex-col justify-center overflow-hidden w-full py-8">
-                        
+                    {/* Main Content Area */}
+                    <main className="flex-1 max-w-6xl mx-auto w-full p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
                         {screen === 'status' ? (
-                            /* --- DASHBOARD VIEW --- */
-                            <div className="space-y-10 w-full">
-                                <div>
-                                    <h1 className="text-lg font-bold tracking-tight text-zinc-900">
-                                        Systemstatus
-                                    </h1>
+                            /* --- MODERN METRICS & SERVICES DASHBOARD --- */
+                            <div className="space-y-6 sm:space-y-8 animate-fade-in">
+                                
+                                {/* Welcome / Summary Info */}
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-850 pb-5">
+                                    <div>
+                                        <h1 className="text-2xl font-bold tracking-tight text-white">Infrastruktur & Dienste</h1>
+                                        <p className="text-xs sm:text-sm text-zinc-400">Statusüberwachung der primären Rechenknoten und deployed Service-Instanzen.</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-zinc-400">
+                                        <div className="bg-zinc-900/60 px-3 py-1.5 rounded border border-zinc-850">
+                                            VPN: <span className="text-emerald-400 font-bold">WIREGUARD</span>
+                                        </div>
+                                        <div className="bg-zinc-900/60 px-3 py-1.5 rounded border border-zinc-850">
+                                            Region: <span className="text-brand-sky font-bold">DE-WEST</span>
+                                        </div>
+                                        <div className="bg-zinc-900/60 px-3 py-1.5 rounded border border-zinc-850">
+                                            Letzter Sync: <span className="text-brand-violet font-bold">Gerade eben</span>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-10 divide-y divide-zinc-200/80">
+                                {/* Resource Metrics Grid */}
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+                                    {/* CPU Metric */}
+                                    <div className={`bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700/60 transition-colors ${!metrics ? 'opacity-60' : ''}`}>
+                                        <div className="flex justify-between items-center text-xs font-mono text-zinc-400">
+                                            <span>CLUSTER CPU</span>
+                                            <svg className="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="16" height="16" x="4" y="4" rx="2" /><rect width="6" height="6" x="9" y="9" rx="1" /><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 15h3M1 9h3M1 15h3" /></svg>
+                                        </div>
+                                        <div className="mt-3 flex items-baseline gap-2">
+                                            <span className="text-2xl font-bold tracking-tight text-white font-mono">
+                                                {metrics && metrics.cpu !== null ? `${metrics.cpu}%` : '--'}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-zinc-500">{metrics ? '24 Cores' : 'keine Daten'}</span>
+                                        </div>
+                                        <div className="w-full bg-zinc-800/60 h-1.5 rounded-full overflow-hidden mt-3.5">
+                                            <div className={`h-full transition-all duration-1000 ${metrics && metrics.cpu !== null ? 'bg-brand-violet' : 'bg-zinc-700/40'}`} style={{ width: metrics && metrics.cpu !== null ? `${metrics.cpu}%` : '0%' }}></div>
+                                        </div>
+                                    </div>
+
+                                    {/* RAM Metric */}
+                                    <div className={`bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700/60 transition-colors ${!metrics ? 'opacity-60' : ''}`}>
+                                        <div className="flex justify-between items-center text-xs font-mono text-zinc-400">
+                                            <span>RAM BELEGUNG</span>
+                                            <svg className="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 19v-3M10 19v-3M14 19v-3M18 19v-3M8 11V9M16 11V9M12 11V9" /><rect width="18" height="12" x="3" y="7" rx="2" /><path d="M4 7V4a1 1 0 0 1 1-1h14a1 1 0 0 1 1-1v3" /></svg>
+                                        </div>
+                                        <div className="mt-3 flex items-baseline gap-2">
+                                            <span className="text-2xl font-bold tracking-tight text-white font-mono">
+                                                {metrics && metrics.ram !== null ? `${metrics.ram}%` : '--'}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-zinc-500">{metrics ? '64 GB DDR5' : 'keine Daten'}</span>
+                                        </div>
+                                        <div className="w-full bg-zinc-800/60 h-1.5 rounded-full overflow-hidden mt-3.5">
+                                            <div className={`h-full transition-all duration-1000 ${metrics && metrics.ram !== null ? 'bg-brand-sky' : 'bg-zinc-700/40'}`} style={{ width: metrics && metrics.ram !== null ? `${metrics.ram}%` : '0%' }}></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Storage Metric */}
+                                    <div className={`bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700/60 transition-colors ${!metrics ? 'opacity-60' : ''}`}>
+                                        <div className="flex justify-between items-center text-xs font-mono text-zinc-400">
+                                            <span>SPEICHER-POOL</span>
+                                            <svg className="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg>
+                                        </div>
+                                        <div className="mt-3 flex items-baseline gap-2">
+                                            <span className="text-2xl font-bold tracking-tight text-white font-mono">
+                                                {metrics && metrics.storage !== null ? `${metrics.storage}%` : '--'}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-zinc-500">{metrics ? 'ZFS Raid-Z2' : 'keine Daten'}</span>
+                                        </div>
+                                        <div className="w-full bg-zinc-800/60 h-1.5 rounded-full overflow-hidden mt-3.5">
+                                            <div className={`h-full transition-all ${metrics && metrics.storage !== null ? 'bg-emerald-500' : 'bg-zinc-700/40'}`} style={{ width: metrics && metrics.storage !== null ? `${metrics.storage}%` : '0%' }}></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Network Metric */}
+                                    <div className={`bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between hover:border-zinc-700/60 transition-colors ${!metrics ? 'opacity-60' : ''}`}>
+                                        <div className="flex justify-between items-center text-xs font-mono text-zinc-400">
+                                            <span>BANDBREITE (AKTUELL)</span>
+                                            <svg className="w-3.5 h-3.5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 16 4-4-4-4M8 8l-4 4 4 4M12 4v16" /></svg>
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-2 gap-1 font-mono">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> DOWN
+                                                </span>
+                                                <span className="text-sm font-bold text-white leading-tight mt-0.5">
+                                                    {metrics && metrics.bandwidthDown !== null ? `${metrics.bandwidthDown} Mb/s` : '--'}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] text-zinc-500 flex items-center gap-0.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> UP
+                                                </span>
+                                                <span className="text-sm font-bold text-white leading-tight mt-0.5">
+                                                    {metrics && metrics.bandwidthUp !== null ? `${metrics.bandwidthUp} Mb/s` : '--'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="h-1 bg-zinc-800/60 rounded-full overflow-hidden mt-3.5 relative">
+                                            {metrics && <span className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-400 opacity-60"></span>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Main Dashboard Grid Layout */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                     
-                                    <div className="pt-0 flex flex-col gap-3.5">
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="space-y-0.5">
-                                                <h2 className="text-base font-extrabold text-[#A199FE] font-sans">Bisou-App</h2>
-                                                <div className="text-[10px] text-zinc-400 font-mono">bisou.benelabs.de</div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-4 shrink-0">
-                                                
-                                                <div className="inline-flex items-center h-6 w-auto px-2.5 gap-1.5 rounded-md bg-[#A199FE]/5 border border-[#A199FE]/20 select-none pointer-events-none">
-                                                    {bisou.status === 'loading' ? (
-                                                        <>
-                                                            <svg className="animate-spin h-3 w-3 text-zinc-400 shrink-0 block my-auto" fill="none" viewBox="0 0 24 24" style={{ display: 'block', verticalAlign: 'middle' }}>
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                            </svg>
-                                                            <span className="text-[10px] font-bold font-mono text-zinc-400 tracking-wide mt-[1px]">PRÜFE...</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <svg className="w-3 h-3 shrink-0 overflow-visible block my-auto" viewBox="0 0 16 16" style={{ display: 'block', verticalAlign: 'middle' }}>
-                                                                <circle className="pulse-ring-2" cx="50%" cy="50%" r="3" fill="#7DE3B5" />
-                                                                <circle className="pulse-ring-1" cx="50%" cy="50%" r="3" fill="#7DE3B5" />
-                                                                <circle cx="50%" cy="50%" r="3" fill="#55D49C" />
-                                                            </svg>
-                                                            <span className="text-[10px] font-bold font-mono text-[#55D49C] tracking-wide mt-[1px]">ONLINE</span>
-                                                        </>
-                                                    )}
-                                                </div>
-
-                                                <a 
-                                                    href="https://bisou.benelabs.de" 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs font-semibold font-mono border px-3 py-1 rounded-lg transition-all border-[#A199FE]/40 text-[#A199FE] bg-[#A199FE]/5 hover:bg-[#A199FE] hover:text-white whitespace-nowrap shadow-sm"
-                                                >
-                                                    zu Bisou ↗
-                                                </a>
-                                            </div>
+                                    {/* LEFT/CENTER: Interactive Service Catalog (2 columns) */}
+                                    <div className="lg:col-span-2 space-y-4">
+                                        <div className="flex justify-between items-center pb-2">
+                                            <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                                                <span className="w-2 h-2 rounded bg-brand-violet"></span>
+                                                Bereitgestellte Applikationen
+                                            </h2>
+                                            <span className="text-[10px] font-mono text-zinc-500">
+                                                {loading ? 'Prüfe...' : `${monitors.length} aktiv überwacht`}
+                                            </span>
                                         </div>
 
-                                        {/* 24h-Balken Bisou */}
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                                                <span>Letzte 24 Stunden</span>
-                                                <span className="font-bold text-[#55D49C]">{bisou.uptime ? `${bisou.uptime}%` : '100.0%'}</span>
-                                            </div>
-                                            <div className="flex gap-[3px] h-2 items-center">
-                                                {generatePlaceholderBars(24).map((bar) => (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            {services.map((svc, idx) => {
+                                                const svcStatus = getServiceStatus(svc);
+                                                return (
                                                     <div 
-                                                        key={bar.id} 
-                                                        className={`h-full flex-1 rounded-[1px] transition-colors ${
-                                                            bisou.status === 'loading' ? 'bg-zinc-200' : 'bg-[#55D49C]'
-                                                        }`}
-                                                    />
-                                                ))}
-                                            </div>
+                                                        key={idx} 
+                                                        className={`group border rounded-xl p-4 bg-gradient-to-br ${svcStatus.status === 'no-data' ? 'from-zinc-900/10 to-zinc-950/5 border-zinc-850 opacity-70 hover:opacity-100 hover:border-zinc-800' : `${svc.color} ${svc.borderColor}`} hover:shadow-lg transition-all duration-300 flex flex-col justify-between min-h-[160px]`}
+                                                    >
+                                                        <div className="space-y-2">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <h3 className={`text-base font-bold ${svcStatus.status === 'no-data' ? 'text-zinc-400' : svc.textColor} group-hover:scale-[1.02] origin-left transition-transform`}>
+                                                                        {svc.name}
+                                                                    </h3>
+                                                                    <span className="text-[10px] font-mono text-zinc-500 block">
+                                                                        {svc.subtitle}
+                                                                    </span>
+                                                                </div>
+                                                                <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded border ${svcStatus.status === 'no-data' ? 'bg-zinc-900/60 text-zinc-500 border-zinc-800' : svc.badgeColor}`}>
+                                                                    {svc.tag}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-zinc-400 leading-relaxed font-sans line-clamp-3">
+                                                                {svc.desc}
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="mt-4 pt-3 border-t border-zinc-800/40 flex justify-between items-center">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {svcStatus.status === 'loading' ? (
+                                                                        <>
+                                                                            <svg className="animate-spin h-2.5 w-2.5 text-zinc-500" fill="none" viewBox="0 0 24 24">
+                                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                                            </svg>
+                                                                            <span className="text-[9px] font-bold font-mono text-zinc-500 tracking-wider">PRÜFE...</span>
+                                                                        </>
+                                                                    ) : svcStatus.status === 'online' ? (
+                                                                        <>
+                                                                            <svg className="w-2.5 h-2.5 overflow-visible shrink-0" viewBox="0 0 16 16">
+                                                                                <circle className="pulse-ring-2" cx="50%" cy="50%" r="3" fill="#55D49C" />
+                                                                                <circle className="pulse-ring-1" cx="50%" cy="50%" r="3" fill="#55D49C" />
+                                                                                <circle cx="50%" cy="50%" r="3" fill="#10b981" />
+                                                                            </svg>
+                                                                            <span className="text-[9px] font-bold font-mono text-emerald-400 tracking-wider">ONLINE</span>
+                                                                        </>
+                                                                    ) : svcStatus.status === 'offline' ? (
+                                                                        <>
+                                                                            <svg className="w-2.5 h-2.5 overflow-visible shrink-0" viewBox="0 0 16 16">
+                                                                                <circle className="pulse-ring-2" cx="50%" cy="50%" r="3" fill="#ef4444" />
+                                                                                <circle className="pulse-ring-1" cx="50%" cy="50%" r="3" fill="#ef4444" />
+                                                                                <circle cx="50%" cy="50%" r="3" fill="#ef4444" />
+                                                                            </svg>
+                                                                            <span className="text-[9px] font-bold font-mono text-rose-500 tracking-wider">OFFLINE</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <svg className="w-2.5 h-2.5 overflow-visible shrink-0" viewBox="0 0 16 16">
+                                                                                <circle cx="50%" cy="50%" r="3" fill="#52525b" />
+                                                                            </svg>
+                                                                            <span className="text-[9px] font-bold font-mono text-zinc-500 tracking-wider">KEINE DATEN</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[9px] font-mono text-zinc-500 font-semibold">
+                                                                    {svcStatus.uptime ? `${svcStatus.uptime}%` : '--'}
+                                                                </span>
+                                                            </div>
+
+                                                            {svc.url !== '#' ? (
+                                                                <a 
+                                                                    href={svc.url} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className={`text-[11px] font-bold font-mono px-2.5 py-1 rounded transition-colors border ${svcStatus.status === 'no-data' ? 'text-zinc-400 border-zinc-800 bg-zinc-950/20 hover:bg-zinc-900 hover:border-zinc-700' : `${svc.textColor} border-zinc-800 bg-zinc-950/40 hover:bg-zinc-900 group-hover:border-zinc-700`}`}
+                                                                >
+                                                                    Öffnen ↗
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-[10px] font-mono text-zinc-600 italic select-none">
+                                                                    Intern (Intranet)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
-                                    <div className="pt-6 flex flex-col gap-3.5">
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="space-y-0.5">
-                                                <h2 className="text-base font-extrabold text-sky-500 font-sans">BeneWetter</h2>
-                                                <div className="text-[10px] text-zinc-400 font-mono">wetter.benelabs.de</div>
-                                            </div>
+                                    {/* RIGHT: Live Status / Uptime & Console Widget */}
+                                    <div className="space-y-6">
+                                        
+                                        {/* Status Monitor Details (real-time look UptimeRobot) */}
+                                        <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-xl p-5 space-y-4">
+                                            <h2 className="text-base font-bold tracking-tight text-white flex items-center gap-2 pb-2 border-b border-zinc-850">
+                                                <span className="w-1.5 h-1.5 rounded bg-brand-sky"></span>
+                                                Uptime Monitor (24h)
+                                            </h2>
                                             
-                                            <div className="flex items-center gap-4 shrink-0">
+                                            {(() => {
+                                                const bMon = monitors.find(m => m.friendly_name.toLowerCase().includes('bisou') || m.url.toLowerCase().includes('bisou'));
+                                                const wMon = monitors.find(m => m.friendly_name.toLowerCase().includes('wetter') || m.url.toLowerCase().includes('wetter'));
                                                 
-                                                <div className="inline-flex items-center h-6 w-auto px-2.5 gap-1.5 rounded-md bg-sky-500/5 border border-sky-500/20 select-none pointer-events-none">
-                                                    {wetter.status === 'loading' ? (
-                                                        <>
-                                                            <svg className="animate-spin h-3 w-3 text-zinc-400 shrink-0 block my-auto" fill="none" viewBox="0 0 24 24" style={{ display: 'block', verticalAlign: 'middle' }}>
-                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                            </svg>
-                                                            <span className="text-[10px] font-bold font-mono text-zinc-400 tracking-wide mt-[1px]">PRÜFE...</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <svg className="w-3 h-3 shrink-0 overflow-visible block my-auto" viewBox="0 0 16 16" style={{ display: 'block', verticalAlign: 'middle' }}>
-                                                                <circle className="pulse-ring-2" cx="50%" cy="50%" r="3" fill="#7DE3B5" />
-                                                                <circle className="pulse-ring-1" cx="50%" cy="50%" r="3" fill="#7DE3B5" />
-                                                                <circle cx="50%" cy="50%" r="3" fill="#55D49C" />
-                                                            </svg>
-                                                            <span className="text-[10px] font-bold font-mono text-[#55D49C] tracking-wide mt-[1px]">ONLINE</span>
-                                                        </>
-                                                    )}
+                                                const getMonitorDetails = (mon, label) => {
+                                                    const exists = !!mon;
+                                                    const status = exists ? (mon.status === 2 ? 'online' : (mon.status === 9 || mon.status === 8 ? 'offline' : 'paused')) : 'no-data';
+                                                    const uptimeStr = exists ? `${mon.custom_uptime_ratio}%` : '--';
+                                                    
+                                                    return (
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between items-center text-xs">
+                                                                <span className="font-semibold text-zinc-300">{label}</span>
+                                                                <span className={`font-mono font-bold ${status === 'online' ? 'text-emerald-400' : status === 'offline' ? 'text-rose-500' : 'text-zinc-500'}`}>{uptimeStr}</span>
+                                                            </div>
+                                                            <div className="flex gap-[2px] h-3 items-center">
+                                                                {generatePlaceholderBars(28).map((bar) => (
+                                                                    <div 
+                                                                        key={bar.id} 
+                                                                        className={`h-full flex-1 rounded-[1px] transition-colors ${
+                                                                            loading ? 'bg-zinc-800 animate-pulse' :
+                                                                            status === 'online' ? 'bg-emerald-500/85 hover:bg-emerald-400' :
+                                                                            status === 'offline' ? 'bg-rose-500/85 hover:bg-rose-400' :
+                                                                            'bg-zinc-850'
+                                                                        }`}
+                                                                        title={status === 'online' ? "Normal" : status === 'offline' ? "Ausfallzeit" : "Keine Daten"}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                            <div className="flex justify-between text-[8px] font-mono text-zinc-500 uppercase">
+                                                                <span>Vor 24 Std</span>
+                                                                <span>{status === 'online' ? 'Online' : status === 'offline' ? 'Offline' : 'Keine Daten'}</span>
+                                                                <span>Jetzt</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                };
+                                                
+                                                return (
+                                                    <div className="space-y-4">
+                                                        {getMonitorDetails(bMon, 'Bisou-App Portal')}
+                                                        <div className="border-t border-zinc-850/40 pt-2"></div>
+                                                        {getMonitorDetails(wMon, 'BeneWetter Node')}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+
+                                        {/* Camouflage Terminal Emulator Widget */}
+                                        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl flex flex-col h-[280px]">
+                                            {/* Window Header */}
+                                            <div className="bg-zinc-950 px-4 py-2 border-b border-zinc-850 flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
                                                 </div>
-
-                                                <a 
-                                                    href="https://wetter.benelabs.de" 
-                                                    target="_blank" 
-                                                    rel="noopener noreferrer"
-                                                    className="text-xs font-semibold font-mono border px-3 py-1 rounded-lg transition-all border-sky-400/40 text-sky-600 bg-sky-500/5 hover:bg-sky-500 hover:text-white whitespace-nowrap shadow-sm"
-                                                >
-                                                    zu BeneWetter ↗
-                                                </a>
+                                                <span className="text-[10px] font-mono text-zinc-500 select-none">benelabs console shell</span>
+                                                <span className="w-6"></span>
                                             </div>
-                                        </div>
 
-                                        {/* 24h-Balken BeneWetter */}
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between text-[10px] font-mono text-zinc-400">
-                                                <span>Letzte 24 Stunden</span>
-                                                <span className="font-bold text-[#55D49C]">{wetter.uptime ? `${wetter.uptime}%` : '100.0%'}</span>
-                                            </div>
-                                            <div className="flex gap-[3px] h-2 items-center">
-                                                {generatePlaceholderBars(24).map((bar) => (
+                                            {/* Terminal Screen */}
+                                            <div className="flex-1 p-3 font-mono text-[11px] overflow-y-auto space-y-1 bg-zinc-950 text-zinc-300">
+                                                {terminalLogs.map((log, index) => (
                                                     <div 
-                                                        key={bar.id} 
-                                                        className={`h-full flex-1 rounded-[1px] transition-colors ${
-                                                            wetter.status === 'loading' ? 'bg-zinc-200' : 'bg-[#55D49C]'
-                                                        }`}
-                                                    />
+                                                        key={index} 
+                                                        className={
+                                                            log.type === 'error' ? 'text-rose-400' :
+                                                            log.type === 'system' ? 'text-brand-violet' :
+                                                            log.type === 'input' ? 'text-white' :
+                                                            'text-zinc-400'
+                                                        }
+                                                        style={{ whiteSpace: 'pre-wrap' }}
+                                                    >
+                                                        {log.text}
+                                                    </div>
                                                 ))}
+                                                <div ref={terminalEndRef} />
                                             </div>
+
+                                            {/* Terminal Input Form */}
+                                            <form onSubmit={handleTerminalSubmit} className="bg-zinc-950 border-t border-zinc-850 p-2 flex items-center">
+                                                <span className="text-[11px] font-mono text-brand-sky pl-2 pr-1 select-none">~$</span>
+                                                <input 
+                                                    type="text" 
+                                                    value={terminalInput}
+                                                    onChange={(e) => setTerminalInput(e.target.value)}
+                                                    placeholder="Tippe 'help'..."
+                                                    className="flex-1 bg-transparent text-[11px] font-mono text-white focus:outline-none border-none pl-1 py-0.5 placeholder:text-zinc-700"
+                                                    autoComplete="off"
+                                                    spellCheck="false"
+                                                />
+                                            </form>
                                         </div>
+
                                     </div>
 
                                 </div>
+
                             </div>
                         ) : (
                             /* --- LOGIN MASKE --- */
-                            <div className="max-w-sm mx-auto w-full border border-zinc-200 bg-white p-6 sm:p-8 rounded-xl shadow-sm relative">
-                                <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-900 rounded-t-xl"></div>
-                                <div className="mb-5">
-                                    <h2 className="text-lg font-bold tracking-tight text-zinc-900">Identität bestätigen</h2>
-                                    <p className="text-[11px] text-zinc-400 font-mono">Autorisierter Zugriff auf persönliche Profileinstellungen.</p>
+                            <div className="max-w-sm mx-auto w-full border border-zinc-800 bg-zinc-900/50 p-6 sm:p-8 rounded-2xl shadow-2xl relative overflow-hidden backdrop-blur-md animate-fade-in my-12">
+                                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-brand-violet to-brand-sky"></div>
+                                <div className="mb-6">
+                                    <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                                        <svg className="w-4 h-4 text-brand-sky" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                        Identität verifizieren
+                                    </h2>
+                                    <p className="text-[10px] text-zinc-500 font-mono mt-1">Autorisierter Administrator-Zugang für benelabs Core.</p>
                                 </div>
 
                                 <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
                                     <div>
-                                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 mb-1">E-Mail</label>
+                                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500 mb-1.5">Benutzerkennung (E-Mail)</label>
                                         <input 
-                                            type="email" required placeholder="name@domain.de"
-                                            className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-300 bg-zinc-50 focus:outline-none focus:border-zinc-500 focus:bg-white transition-all"
+                                            type="email" required placeholder="admin@benelabs.de"
+                                            className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-800 bg-zinc-950 text-white focus:outline-none focus:border-brand-violet focus:ring-1 focus:ring-brand-violet transition-all"
                                         />
                                     </div>
 
                                     <div className="relative">
-                                        <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400 mb-1">Passwort</label>
+                                        <div className="flex justify-between items-center mb-1.5">
+                                            <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-500">Sicherheitsschlüssel (Passwort)</label>
+                                        </div>
                                         <input 
                                             type="password" required placeholder="••••••••"
-                                            className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-300 bg-zinc-50 focus:outline-none focus:border-zinc-500 focus:bg-white transition-all"
+                                            className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-800 bg-zinc-950 text-white focus:outline-none focus:border-brand-violet focus:ring-1 focus:ring-brand-violet transition-all"
                                         />
                                     </div>
 
                                     <button 
                                         type="submit"
-                                        className="w-full py-2 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-mono font-semibold tracking-wider transition-colors shadow-sm"
+                                        className="w-full py-2.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold tracking-wider transition-colors shadow-sm font-mono mt-2"
                                     >
-                                        Verifizieren
+                                        VERIFIZIEREN
                                     </button>
                                 </form>
                             </div>
                         )}
-                        
                     </main>
 
-                    <footer className="w-full text-center text-[10px] text-zinc-400 font-mono tracking-widest pt-4 border-t border-zinc-300/60 h-8 shrink-0">
-                        © {new Date().getFullYear()} benelabs
+                    {/* Footer */}
+                    <footer className="w-full text-center text-[9px] text-zinc-600 font-mono tracking-widest py-6 border-t border-zinc-900/60 max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2 px-6">
+                        <div>
+                            © {new Date().getFullYear()} benelabs console. Alle Rechte vorbehalten.
+                        </div>
+                        <div className="flex gap-4">
+                            <span className="hover:text-zinc-500 cursor-pointer">Security Policy</span>
+                            <span>•</span>
+                            <span className="hover:text-zinc-500 cursor-pointer">Network Node: Active</span>
+                        </div>
                     </footer>
                 </div>
             );
